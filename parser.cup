@@ -1,0 +1,744 @@
+package cup.example;
+
+import java_cup.runtime.*;
+import cup.example.Lexer;
+import java.io.IOException;
+import java.io.File;
+import java.io.FileInputStream;
+import astClasses.*;
+import java.lang.Integer;
+
+parser code {:
+  protected Lexer lexer;
+:}
+
+/* define how to connect to the scanner! */
+init with {:
+  ComplexSymbolFactory f = new ComplexSymbolFactory();
+  symbolFactory = f;
+  File file = new File("input.txt");
+  FileInputStream fis = null;
+  try {
+    fis = new FileInputStream(file);
+  } catch (IOException e) {
+    e.printStackTrace();
+  } 
+  lexer = new Lexer(f,fis);
+:};
+scan with {: return lexer.next_token(); :};
+
+/* Terminals (tokens returned by the scanner). */
+terminal	AND, ARRAY, BEGIN, BY, DIV, DO, ELSE,
+			ELSIF, END, EXIT, FOR, IF, IS, LOOP,
+			MOD, NOT, OF, OR, PROCEDURE, PROGRAM, READ,
+			RECORD, RETURN, THEN, TO, TYPE, VAR, WHILE,
+			WRITE;
+			
+terminal	DOT, SUB, ADD, MULT, DIVIDE, LESS, GREATER,
+			ASSIGN, LESSEQ, GREATEREQ, EQUAL, DIFF, COLON,
+			SEMICOLON, COMMA, LPAREN, RPAREN, LSQBKT, RSQBKT,
+			LBRKT, RBRKT, LSQBKTLESS, GREATERRSQBKT;
+			
+
+			
+terminal String  ID, STRING;
+terminal Integer INTEGER;
+terminal Float   REAL;
+terminal NUMERIC_CONSTANT;
+
+/* Non terminals */
+non terminal number;
+
+non terminal WriteParams write_params;
+non terminal ElsifStatementList elsif_statement_group;
+non terminal TypeDeclList type_decl_group;
+non terminal ProcedureDeclList procedure_decl_group;
+non terminal DeclarationList var_decl_group;
+non terminal Statement statement;
+non terminal Expression expression;
+non terminal FormalParams formal_params;
+non terminal Program program;
+non terminal Body body;
+non terminal DeclarationList declaration_list;
+non terminal Declaration declaration;
+non terminal VarDeclaration var_decl;
+non terminal ProcedureDeclaration procedure_decl;
+non terminal Typename typename;
+non terminal Type type;
+non terminal Component component;
+non terminal FPSection fp_section;
+non terminal WriteExpression write_expr;
+non terminal TypeDeclaration type_decl;
+non terminal ElseStatement else_statement;
+non terminal DoStatement do_statement;
+non terminal TypeDeclList type_decl_list;
+non terminal VarDeclList var_decl_list;
+non terminal ProcedureDeclList procedure_decl_list;
+non terminal IdExpressionList id_expression_list;
+non terminal ArrayInitList array_init_list;
+non terminal ExpressionOfList expression_of_list;
+non terminal ProcedureParams procedure_params;
+non terminal IfThing if_thing;
+non terminal CommaLvalueList comma_lvalue_list;
+non terminal CommaLvalue comma_lvalue;
+non terminal ElsifStatementList elsif_statement_list;
+non terminal ElsifStatement elsif_statement;
+non terminal StatementList statement_list;
+non terminal CommaExpressionList comma_expression_list;
+non terminal CommaExpression comma_expression;
+non terminal ByExpressionList by_expression_list;
+non terminal ExpressionList expression_list;
+non terminal ByExpression by_expression;
+non terminal ElseStatementList else_statement_list;
+non terminal LValue lvalue;
+non terminal ActualParams actual_params;
+non terminal RecordInits record_inits;
+non terminal ArrayInits array_inits;
+non terminal ArrayInit array_init;
+non terminal Operator unary_op;
+non terminal Operator binary_op;
+non terminal IDList id_list;
+non terminal FpSectionList fp_section_list;
+non terminal WriteExprList write_expr_list;
+non terminal ComponentList component_list;
+
+/* Precedences */
+precedence left LESS, GREATER, LESSEQ, GREATEREQ, EQUAL, DIFF, LPAREN, ID, RPAREN;
+precedence left AND, ELSE,NOT;
+precedence left ADD, SUB, OR;
+precedence left MULT, DIVIDE, MOD, DIV, AND;
+
+start with program;
+
+/* The grammar rules */
+program ::= PROGRAM IS body:b SEMICOLON {: RESULT = new Program(b); :}
+		  ;
+
+body ::= declaration_list:dl BEGIN statement_list:sl END {: RESULT = new Body(dl, sl); :}
+	   | BEGIN statement_list:sl END	{: RESULT = new Body(sl); :}
+	   | BEGIN END
+	   ;
+	   
+declaration_list ::= declaration:d 
+					{: 
+						RESULT = new DeclarationList();
+						RESULT.addDeclaration(d);
+					:}
+			      | declaration_list:dl declaration:d
+			      	{: 
+						if(dl != null){
+							RESULT = dl;
+						}
+						else{
+							RESULT = new DeclarationList();
+						}
+						RESULT.addDeclaration(d);
+					:}
+			      ;
+
+declaration ::= var_decl_group:vdg {: RESULT = vdg; :}	
+			  | type_decl_group:tdg {: RESULT = tdg; :}
+			  | procedure_decl_group:pdg {:  RESULT = pdg; :}
+			  ;
+			  
+var_decl_group ::= VAR var_decl_list:vdl {: RESULT = vdl; :}
+				 | VAR
+				 ;
+
+var_decl_list ::= var_decl:vd
+				{: 
+					RESULT = new VarDeclList();
+					RESULT.AddVarDeclaration(vd);
+				:}
+				| var_decl_list:vdl var_decl:vd
+				{: 
+					if(vdl != null){
+						RESULT = vdl;
+					}
+					else{
+						RESULT = new VarDeclList();
+					}
+					RESULT.AddVarDeclaration(vd);
+				:}
+				;
+
+var_decl ::= id_list:idl COLON typename:tn ASSIGN expression:exp SEMICOLON
+				{: 
+					if(idl != null){						
+						RESULT = new VarDeclaration(idl, tn, exp);
+					}
+					else{
+						RESULT = new VarDeclaration(new IDList(), tn, exp);
+					}	
+				:}
+		   | id_list:idl ASSIGN expression:exp SEMICOLON
+		   		{:
+					if(idl != null){
+						RESULT = new VarDeclaration(idl, exp);
+					}
+					else{
+						RESULT = new VarDeclaration(new IDList(), exp);
+					}
+				:}
+		   | var_decl:vdec id_list:idl ASSIGN expression:exp SEMICOLON
+		   		{: 
+					if(idl != null){
+						RESULT = new VarDeclaration(vdec, idl, exp);
+					}
+					else{
+						RESULT = new VarDeclaration(vdec, new IDList(), exp);
+					}
+				:}
+		   | var_decl:vdec id_list:idl COLON typename:tn ASSIGN expression:exp SEMICOLON
+		   		{: 
+					if(idl != null){
+						RESULT = new VarDeclaration(vdec, idl, tn, exp);
+					}
+					else{
+						RESULT = new VarDeclaration(vdec, new IDList(), tn, exp);
+					}
+				:}
+		   ;
+
+id_list ::= ID:id {: RESULT = new IDList(id); :}
+		 | id_list:idl COMMA ID:id {: RESULT = new IDList(idl, id); :}
+		 ;
+		 
+type_decl_group ::= TYPE type_decl_list:tdl {: RESULT=tdl; :}
+          		  | TYPE
+                  ;
+                  
+type_decl_list ::= type_decl:td
+				{: 
+				   RESULT = new TypeDeclList();
+				   RESULT.AddTypeDeclaration(td);
+				:}
+               	 | type_decl_list:tdl type_decl:td 
+               	 {: 
+					if(tdl != null){
+						RESULT = tdl;
+					}
+					else{
+						RESULT = new TypeDeclList();
+					}
+					RESULT.AddTypeDeclaration(td);
+				:}
+			    ;
+		 
+type_decl ::= ID:id IS type:t SEMICOLON {: RESULT = new TypeDeclaration(id, t); :}
+			;
+			
+procedure_decl_group ::= PROCEDURE procedure_decl_list:pdl {: RESULT=pdl; :}
+            		   | PROCEDURE
+            		   ;
+            		   
+procedure_decl_list ::= procedure_decl:pd
+					{: 
+						RESULT = new ProcedureDeclList();
+						RESULT.AddProcedureDeclaration(pd);
+					:}
+              		  | procedure_decl_list:pdl procedure_decl:pd 
+              		  {: 
+						if(pdl != null){
+							RESULT = pdl;
+						}
+						else{
+							RESULT = new ProcedureDeclList();
+						}
+						RESULT.AddProcedureDeclaration(pd);
+					:}
+              		  ;
+
+procedure_decl ::= ID formal_params:fp COLON typename:tn IS body:b SEMICOLON
+						{: RESULT = new ProcedureDeclaration(fp, tn, b); :}
+				 | procedure_params:pp IS body:b SEMICOLON
+				 		{: RESULT = new ProcedureDeclaration(pp, b); :}
+				 | procedure_params:pp COLON typename:tn IS body:b SEMICOLON
+				 		{: RESULT = new ProcedureDeclaration(pp, tn, b); :}
+				 ;
+				 
+procedure_params ::= ID:id1 LPAREN ID:id2 COLON ID:id3 RPAREN
+				   {: RESULT = new ProcedureParams(id1, id2, id3); :}
+				   | ID:id4 LPAREN ID:id5 COLON typename:t RPAREN
+				   {: RESULT = new ProcedureParams(id4, id5, t); :}
+				   | ID:id LPAREN RPAREN
+				   {: RESULT = new ProcedureParams(id); :}
+				   ;
+
+
+typename ::= ID:id
+				{:
+					RESULT = new IDType(id);
+				:}
+		   | INTEGER:integ
+		   		{:
+					RESULT = new IntegerType(integ);
+				:}
+		   | REAL:real
+		  		{:
+					RESULT = new RealType(real);
+				:}
+		   | STRING:string
+		   		{:
+					RESULT = new StringType(string);
+				:}
+		   ;
+
+type ::= ARRAY OF typename:tn
+			{:
+				RESULT = new Type(tn);
+			:}
+	   | RECORD component:c component_list:cl END
+	   		{:
+				RESULT = new Type(c, cl);
+			:}
+	   | RECORD component:c END
+	   		{:
+				RESULT = new Type(c);
+			:}
+	   ;
+   
+component_list ::= component:c 	
+					{: 
+						RESULT = new ComponentList();
+						RESULT.AddComponent(c); 
+					:}
+				 | component_list:cl component:c 			      	
+				 	{: 
+						if(cl != null){
+							RESULT = cl;
+						}
+						else{
+							RESULT = new ComponentList();
+						}
+						RESULT.AddComponent(c);
+					:}
+				 ;
+				 		
+component ::= ID:id COLON typename:tn SEMICOLON
+				{: 
+					RESULT = new Component(id, tn);
+				:}
+			;
+
+formal_params ::= LPAREN fp_section_list:fsl RPAREN
+					{:
+						RESULT = fsl;
+					:}
+				;
+				
+fp_section_list ::= fp_section:fps 
+						{: 
+							RESULT = new FpSectionList();
+							RESULT.AddFpSection(fps); 
+						:}
+				  | fp_section_list:fpsl SEMICOLON fp_section:fps
+				 	{: 
+						if(fpsl != null){
+							RESULT = fpsl;
+						}
+						else{
+							RESULT = new FpSectionList();
+						}
+						RESULT.AddFpSection(fps);
+					:}				  
+				  ;
+ 
+fp_section ::= ID:id1 COMMA ID:id2 COLON typename:tn
+				{:
+					RESULT = new FPSection(id1, id2, tn);
+				:}
+			 ;
+
+statement_list ::= statement:s
+                                  {:
+										RESULT = new StatementList();
+                                        RESULT.AddStatement(s);
+                                  :}
+                                 | statement_list:sl statement:s
+                                   {:
+                                                if(sl != null)
+                                                {
+                                                        RESULT = sl;
+                                                }
+                                                else
+                                                {
+                                                        RESULT = new StatementList();
+                                                }
+                                                RESULT.AddStatement(s);
+                                   :}
+                                 ;
+
+statement ::= lvalue:lv ASSIGN expression:exp SEMICOLON
+					{:
+                    	RESULT = new Statement(lv, exp);
+                    :}
+ 			| ID:id actual_params:ap SEMICOLON
+ 					{:
+                    	RESULT = new Statement(id, ap);
+                    :}
+ 			| READ LPAREN lvalue:lv comma_lvalue_list:cll RPAREN SEMICOLON
+ 					{:
+                    	RESULT = new Statement(lv, cll);
+                    :}
+ 			| READ LPAREN lvalue:lv RPAREN SEMICOLON
+ 					{:
+                    	RESULT = new Statement(lv);
+                    :}
+			| WRITE write_params:wp SEMICOLON
+					{:
+                    	RESULT = new Statement(wp);
+                    :}
+			| IF expression:exp THEN ID:id actual_params:ap SEMICOLON
+              ELSE statement_list:sl END SEMICOLON
+              		{:
+                    	RESULT = new Statement(exp, id, ap, sl);
+                    :}
+			| IF expression:exp THEN statement_list:sl
+ 			  elsif_statement_group
+              else_statement_list:esl END SEMICOLON
+              		{:
+                    	RESULT = new Statement(exp, sl, esl);
+                    :}
+            | IF expression:exp THEN statement_list:sl END SEMICOLON
+            		{:
+                    	RESULT = new Statement(exp, sl);
+                    :}
+            | IF expression:exp THEN
+ 			  elsif_statement_group
+              else_statement_list:esl END SEMICOLON
+              		{:
+                    	RESULT = new Statement(exp, esl);
+                    :}
+            | IF expression:exp THEN END SEMICOLON
+            		{:
+                    	RESULT = new Statement(exp);
+                    :}
+			| WHILE expression:exp DO statement_list:sl END SEMICOLON
+					{:
+                    	RESULT = new Statement(exp, sl);
+                    :}
+			| WHILE expression:exp DO END SEMICOLON
+					{:
+                    	RESULT = new Statement(exp);
+                    :}
+			| LOOP statement_list:sl END SEMICOLON
+					{:
+                    	RESULT = new Statement(sl);
+                    :}
+			| LOOP END SEMICOLON
+			| FOR ID:id ASSIGN expression:exp1 TO expression:exp2 
+			  DO do_statement:ds END SEMICOLON
+			  		{:
+                    	RESULT = new Statement(id, exp1, exp2, ds);
+                    :}
+			| FOR ID:id ASSIGN expression:exp1 TO expression:exp2 BY expression:exp3
+			  DO do_statement:ds END SEMICOLON
+			  		{:
+                    	RESULT = new Statement(id, exp1, exp2, exp3, ds);
+                    :}
+			| EXIT SEMICOLON
+			| RETURN expression_list:el SEMICOLON
+					{:
+                    	RESULT = new Statement(el);
+                    :}
+			| lvalue:lv SEMICOLON
+					{:
+                    	RESULT = new Statement(lv);
+                    :}
+			;
+
+if_thing ::= ID:id1 LPAREN ID:id2 ADD number SEMICOLON
+			{: RESULT = new IfThing(id1, id2); :}
+		   ;			
+
+comma_lvalue_list ::= comma_lvalue:clv
+									    {:
+												RESULT = new CommaLvalueList();
+                                                RESULT.AddCommaLvalue(clv);
+                                        :}
+									    | comma_lvalue_list:clvl comma_lvalue:clv
+									    {:
+                                                if(clvl != null){
+                                                        RESULT = clvl;
+                                                }
+                                                else{
+                                                        RESULT = new CommaLvalueList();
+                                                }
+                                                RESULT.AddCommaLvalue(clv);
+                                        :}
+									    ;
+
+comma_lvalue ::= COMMA lvalue:lv
+                                {:
+                                        RESULT = new CommaLvalue(lv);
+                                :}
+                           ;
+			   
+elsif_statement_group ::= elsif_statement_list:esl
+                                                {:
+                                                        RESULT = esl;
+                                                :}
+                                                |
+                                                ;
+
+elsif_statement_list ::= elsif_statement: es
+                                                {:
+														RESULT = new ElsifStatementList();
+                                                        RESULT.AddElsifStatement(es);
+                                                :}
+                                           | elsif_statement_list:esl elsif_statement:es
+                                           {:
+                                                        if(esl != null)
+                                                        {
+                                                                RESULT = esl;
+                                                        }
+                                                        else{
+                                                                RESULT = new ElsifStatementList();
+                                                        }
+                                                        RESULT.AddElsifStatement(es);
+                                           :}
+                                           ;
+
+elsif_statement ::= ELSIF expression:ex THEN statement_list:sl
+                                        {:
+                                                RESULT = new ElsifStatement(ex, sl);
+                                        :}
+  										| ELSIF expression:ex THEN
+        								{:
+                                                RESULT = new ElsifStatement(ex);
+                                        :}
+										;
+				 
+else_statement_list ::= else_statement:es
+                                                {:
+														RESULT = new ElseStatementList();
+                                                        RESULT.AddElseStatement(es);
+                                                :}
+                                          | else_statement_list:esl else_statement:es
+                                          {:
+                                                        if(esl != null){
+                                                                RESULT = esl;
+                                                        }
+                                                        else {
+                                                                RESULT = new ElseStatementList();
+                                                        }
+                                                        RESULT.AddElseStatement(es);
+                                          :}
+                                          ;
+					  
+else_statement ::= ELSE statement_list:sl
+					{: 
+						RESULT = new ElseStatement(sl);
+					:}
+                 | ELSE
+                 ;
+				
+do_statement ::= statement_list:sl
+				{: 
+					RESULT = new DoStatement(sl);
+				:}
+			   | 
+			   ;
+
+by_expression_list ::= by_expression:be
+                                          {:
+												RESULT = new ByExpressionList();
+                                                RESULT.AddByExpression(be);
+                                          :}
+                                         | by_expression_list:bel by_expression:be
+                                         {:
+                                                if(bel != null)
+                                                {
+                                                        RESULT = bel;
+                                                }
+                                                else{
+                                                        RESULT = new ByExpressionList();
+                                                }
+                                                RESULT.AddByExpression(be);
+                                         :}
+                                         ;
+
+by_expression ::= BY expression:e
+                                {:
+                                        RESULT = new ByExpression(e);
+                                :}
+                                ;
+			
+write_params ::= LPAREN write_expr_list:wel RPAREN {: RESULT = wel; :}
+                 | LPAREN RPAREN 
+                 ;
+                 
+write_expr_list ::=  write_expr:we 
+					{: 
+						RESULT = new WriteExprList();
+						RESULT.AddWriteExp(we); 
+					:}
+                | write_expr_list:wel COMMA write_expr:we
+				 	{: 
+						if(wel != null){
+							RESULT = wel;
+						}
+						else{
+							RESULT = new WriteExprList();
+						}
+						RESULT.AddWriteExp(we);
+					:}	                
+                ;
+                
+write_expr ::= STRING:string  {: RESULT = new WriteExpression(string); :}
+ 			| expression:exp  {: RESULT = new WriteExpression(exp); :}
+			;
+ 			
+expression_list ::= expression: e
+                                        {:
+												RESULT = new ExpressionList();
+                                                RESULT.AddExpression(e);
+                                        :}
+                                  | expression_list:el expression:e
+                                  {:
+                                        if(el != null)
+                                        {
+                                                RESULT = el;
+                                        }
+                                        else
+                                        {
+                                                RESULT = new ExpressionList();
+                                        }
+                                        RESULT.AddExpression(e);
+                                  :}
+                                  ;      			
+
+expression ::= number
+			 | lvalue:lv
+			 	{:
+					RESULT = new Expression(lv);
+				:}
+			 | LPAREN expression:exp RPAREN
+			 	{:
+					RESULT = new Expression(exp);
+				:}
+			 | unary_op:uo expression:exp
+			 	{:
+					RESULT = new Expression(uo, exp);
+				:}
+			 | expression:exp1 binary_op:bo expression:exp2
+			 	{:
+					RESULT = new Expression(exp1, bo, exp2);
+				:}
+			 | ID:id actual_params:ap
+			 	{:
+					RESULT = new Expression(id, ap);
+				:}
+			 | ID:id record_inits:ri
+			 	{:
+					RESULT = new Expression(id, ri);
+				:}
+			 | ID:id array_inits:ai
+			 	{:
+					RESULT = new Expression(id, ai);
+				:}
+			 ;
+			 
+lvalue ::= ID:id {: RESULT = new LValue(id); :}
+		 | lvalue:lv LSQBKT expression:exp RSQBKT {:  RESULT = new LValue(lv, exp); :} 
+		 | lvalue:lv LPAREN expression:exp RPAREN {:  RESULT = new LValue(lv, exp); :}
+		 | lvalue:lv LPAREN RPAREN {:  RESULT = new LValue(lv); :}
+		 | lvalue:lv DOT ID {:  RESULT = new LValue(lv); :}
+		 ;
+		 
+actual_params ::= LPAREN expression:exp comma_expression_list:cel RPAREN {: RESULT = new ActualParams(exp, cel); :} 
+				| LPAREN expression:exp RPAREN {: RESULT = new ActualParams(exp); :}
+ 				| LPAREN RPAREN
+				;
+
+comma_expression_list ::= comma_expression:ce
+                                                {:
+														RESULT = new CommaExpressionList();
+                                                        RESULT.AddCommaExpression(ce);
+                                                :}
+                                                | comma_expression_list:cel comma_expression:ce
+                                                {:
+                                                        if(cel != null)
+                                                        {
+                                                                RESULT = cel;
+                                                        }
+                                                        else{
+                                                                RESULT = new CommaExpressionList();
+                                                        }
+                                                        RESULT.AddCommaExpression(ce);
+                                                :}
+                                                ;
+
+comma_expression ::= COMMA expression:e
+                                        {:
+                                                RESULT = new CommaExpression(e);
+                                        :}
+                                   ;
+
+record_inits ::= LBRKT ID:id ASSIGN expression:exp id_expression_list:iel RBRKT {: RESULT = new RecordInits(id, exp, iel); :}
+               | LBRKT ID:id ASSIGN expression:exp RBRKT {: RESULT = new RecordInits(id, exp); :}
+               ;
+
+id_expression_list ::= SEMICOLON ID:id ASSIGN expression:exp
+					{: 
+						RESULT = new IdExpressionList(id, exp);
+					:}
+                     | id_expression_list:iel SEMICOLON ID:id ASSIGN expression:exp
+                     {: RESULT = new IdExpressionList(iel, id, exp); :}
+			      ;
+
+array_inits ::= LSQBKTLESS array_init:ai array_init_list:ail GREATERRSQBKT{: RESULT = new ArrayInits(ai, ail); :}
+              | LSQBKTLESS array_init:ai GREATERRSQBKT{: RESULT = new ArrayInits(ai); :}
+              ;
+
+array_init_list ::= COMMA array_init:ai
+					{: 
+						RESULT = new ArrayInitList();
+						RESULT.AddArrayInit(ai);
+					:}
+                  | array_init_list:ail COMMA array_init:ai
+                  {: 
+					if(ail != null){
+						RESULT = ail;
+					}
+					else{
+						RESULT = new ArrayInitList();
+					}
+					RESULT.AddArrayInit(ai);
+				  :}
+                  ;
+
+array_init ::= expression_of_list:eol OF expression:e
+				 	{: 
+						RESULT = new ArrayInit(eol, e);
+					:}
+			 ;
+
+expression_of_list ::= expression:exp {: RESULT = new ExpressionOfList(exp); :}
+                  | expression_of_list:eol OF expression:exp {: RESULT = new ExpressionOfList(eol, exp); :} 
+                  ;
+
+number ::= NUMERIC_CONSTANT
+		 ;
+
+unary_op ::=  ADD:add {: RESULT = new ADD_Operator("+"); :}  
+			| SUB:sub {: RESULT = new SUB_Operator("-"); :}  
+			| NOT:not {: RESULT = new NOT_Operator("!"); :} 
+		   ;
+
+binary_op ::= ADD:add {: RESULT = new ADD_Operator("+"); :} 
+			| SUB:sub {: RESULT = new SUB_Operator("-"); :}  
+			| MULT:mult {: RESULT = new MULT_Operator("*"); :}  
+			| DIVIDE:divide {: RESULT = new DIVIDE_Operator("/"); :}  
+			| DIV:div {: RESULT = new DIV_Operator("DIV"); :}  
+			| MOD:mod {: RESULT = new MOD_Operator("MOD"); :}  
+			| OR:or {: RESULT = new OR_Operator("OR"); :}  
+			| AND:and {: RESULT = new AND_Operator("AND"); :} 
+			| GREATER:greater {: RESULT = new GREATER_Operator(">"); :}  
+			| LESS:less {: RESULT = new LESS_Operator("<"); :}  
+			| EQUAL:equal {: RESULT = new EQUAL_Operator("="); :}  
+			| GREATEREQ:greatereq {: RESULT = new GREATEREQ_Operator(">="); :}  
+			| LESSEQ:lesseq {: RESULT = new LESSEQ_Operator("<="); :}  
+			| DIFF:diff {: RESULT = new DIFF_Operator("-"); :} 
+			;
